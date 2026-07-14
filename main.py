@@ -1,5 +1,10 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, r2_score
 df=pd.read_csv("delhi_aqi.csv")
 df["date"] = pd.to_datetime(df["date"])
 df = df.sort_values("date").reset_index(drop=True)
@@ -304,11 +309,49 @@ X_train, X_test, y_train, y_test = train_test_split(
     random_state=42
 )
 
-model = RandomForestRegressor(
-    n_estimators=100,
-    random_state=42
+rf_base = RandomForestRegressor(random_state=42)
+
+param_grid = {
+    'n_estimators': [50, 100],
+    'max_depth': [10, 20],
+    'min_samples_split': [2, 5]
+}
+
+grid_search = GridSearchCV(
+    estimator=rf_base,
+    param_grid=param_grid,
+    cv=5,
+    n_jobs=-1,
+    scoring='neg_mean_absolute_error'
 )
 
-model.fit(X_train, y_train)
+grid_search.fit(X_train, y_train)
 
-print("Model trained successfully")
+best_rf_model = grid_search.best_estimator_
+
+print("\nOptimal parameters found:")
+print(grid_search.best_params_)
+print("Tuned model trained successfully\n")
+
+predictions = best_rf_model.predict(X_test)
+
+mae = mean_absolute_error(y_test, predictions)
+r2 = r2_score(y_test, predictions)
+
+print("EVALUATION RESULTS")
+print(f"Mean Absolute Error (MAE): {mae:.2f}")
+print(f"R-squared (R2) Score: {r2:.2f}\n")
+
+importances = best_rf_model.feature_importances_
+feature_names = X.columns
+importance_df = pd.DataFrame({'Feature': feature_names, 'Importance': importances})
+importance_df = importance_df.sort_values(by='Importance', ascending=True)
+
+plt.figure(figsize=(10, 8))
+plt.barh(importance_df['Feature'][-15:], importance_df['Importance'][-15:], color='steelblue')
+plt.xlabel('Importance Score')
+plt.ylabel('Features')
+plt.title('Top 15 Random Forest Feature Importances')
+plt.tight_layout()
+plt.savefig('feature_importance.png')
+print("Feature importance chart saved as 'feature_importance.png'")
